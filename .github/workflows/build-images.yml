@@ -48,7 +48,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      - name: Build and push ${{ env.DOCKER_IMAGE }}:${{ matrix.versions.ansible }}-py${{ matrix.versions.python }}
+      - name: Build and push ${{ env.DOCKER_IMAGE }}:${{ matrix.versions.tag }}
         uses: docker/build-push-action@v3
         with:
           context: image
