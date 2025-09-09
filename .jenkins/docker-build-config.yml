@@ -2,7 +2,7 @@
 pipeline:
   alwaysEmailList: ljohnson@dettonville.org
   runInParallel: true
-  maxRandomDelaySeconds: 60
+  maxRandomDelaySeconds: 120
 
   buildImageName: "ansible/ansible-test"
   buildDir: "image"
