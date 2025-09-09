@@ -26,8 +26,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # Set PIP_NO_CACHE_DIR to prevent pip from caching packages inside the image
     PIP_NO_CACHE_DIR=1
 
-ENV PATH="/root/.local/bin:${PATH}"
-
 ## ref: https://github.com/pypa/pip/issues/11179#issuecomment-1152766374
 ENV PIP_ROOT_USER_ACTION=ignore
 
@@ -118,6 +116,7 @@ USER "${APPUSER}"
 
 # Create a working directory for Ansible project files
 WORKDIR /ansible_project
+ENV PATH="/ansible_project/.local/bin:${PATH}"
 
 # Install ansible-core and ansible-test.
 # ansible-test is included as part of the ansible-core package.
