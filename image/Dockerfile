@@ -10,6 +10,8 @@ ARG PYTHON_VERSION="3.10"
 FROM python:${PYTHON_VERSION}-slim-bullseye
 
 ARG ANSIBLE_CORE_VERSION="latest"
+ARG APPUSER="ansible"
+ARG APPGROUP="ansible"
 
 LABEL maintainer="Lee Johnson <ljohnson@dettonville.org>"
 LABEL description="Custom Ansible Test Container for Ansible Core ${ANSIBLE_CORE_VERSION} and Python ${PYTHON_VERSION}"
@@ -141,7 +143,18 @@ RUN pip install --upgrade pip \
 # The `ansible-test` tool and other Ansible commands expect this path to exist.
 RUN mkdir -p /root/.ansible/collections
 
-# Create a working directory for Ansible project files
+
+# Create a non-root user and group, if they don't already exist
+RUN if ! getent group "${APPGROUP}" > /dev/null; then addgroup --system "${APPGROUP}"; fi \
+    && if ! getent passwd "${APPUSER}" > /dev/null; then \
+#       adduser --system --ingroup "${APPGROUP}" --home /ansible_project --shell /sbin/nologin "${APPUSER}"; \
+       adduser --system --ingroup "${APPGROUP}" --home /ansible_project "${APPUSER}"; \
+    fi
+
+# Set the new user as the working user for the rest of the build and runtime
+USER "${APPUSER}"
+
+# Set the working directory for the non-root user
 WORKDIR /ansible_project
 
 # You can add an entrypoint here if you want to define a default command,
