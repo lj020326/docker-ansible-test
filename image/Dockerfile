@@ -95,8 +95,6 @@ RUN apt-get update \
     && apt-get clean
 # --- End Docker-in-Docker (DinD) support installation ---
 
-RUN python3.10 -m pip install --upgrade pip
-
 ## 'yq' required for ansible inventory tests
 ## https://github.com/mikefarah/yq#install
 RUN wget -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz -O - |\
