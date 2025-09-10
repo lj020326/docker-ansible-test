@@ -10,8 +10,6 @@ ARG PYTHON_VERSION="3.12"
 FROM python:${PYTHON_VERSION}-slim-bullseye
 
 ARG ANSIBLE_CORE_VERSION="latest"
-ARG APPUSER="ansible"
-ARG APPGROUP="ansible"
 
 LABEL maintainer="Lee Johnson <ljohnson@dettonville.org>"
 LABEL description="Custom Ansible Test Container for Ansible Core ${ANSIBLE_CORE_VERSION} and Python ${PYTHON_VERSION}"
@@ -25,6 +23,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/ansible/bin" \
     # Set PIP_NO_CACHE_DIR to prevent pip from caching packages inside the image
     PIP_NO_CACHE_DIR=1
+
+ENV PATH="/root/.local/bin:${PATH}"
 
 ## ref: https://github.com/pypa/pip/issues/11179#issuecomment-1152766374
 ENV PIP_ROOT_USER_ACTION=ignore
@@ -102,26 +102,16 @@ RUN wget -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ
 #RUN wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
 #    chmod +x /usr/local/bin/yq
 
-# Create a non-root user and group, if they don't already exist
-RUN if ! getent group "${APPGROUP}" > /dev/null; then addgroup --system "${APPGROUP}"; fi \
-    && if ! getent passwd "${APPUSER}" > /dev/null; then \
-#       adduser --system --ingroup "${APPGROUP}" --home /ansible_project --shell /sbin/nologin "${APPUSER}"; \
-       adduser --system --ingroup "${APPGROUP}" --home /ansible_project "${APPUSER}"; \
-    fi
-
-# Set the new user as the working user for the rest of the build and runtime
-USER "${APPUSER}"
-
-# Create a working directory for Ansible project files
-WORKDIR /ansible_project
-ENV PATH="/ansible_project/.local/bin:${PATH}"
+# Set the working user for the rest of the build and runtime to 'root'
+# as your desired UID is 0.
+USER root
 
 RUN echo "Install ansible-core with ANSIBLE_CORE_VERSION: ${ANSIBLE_CORE_VERSION}"
 
 # Install ansible-core and ansible-test.
 # ansible-test is included as part of the ansible-core package.
 # Use the specified ANSIBLE_CORE_VERSION.
-RUN pip install --upgrade pip \
+RUN pip install --user --upgrade pip \
     && case "${ANSIBLE_CORE_VERSION}" in \
         latest) \
             pip install "ansible-core"; \
@@ -149,6 +139,14 @@ RUN pip install --upgrade pip \
             ;; \
     esac \
     && pip install --user pytest flake8
+
+# Create the default Ansible collections directory to ensure
+# `ansible-galaxy collection list` can run without errors.
+# The `ansible-test` tool and other Ansible commands expect this path to exist.
+RUN mkdir -p /root/.ansible/collections
+
+# Create a working directory for Ansible project files
+WORKDIR /ansible_project
 
 # You can add an entrypoint here if you want to define a default command,
 # but leaving it flexible allows the Jenkins pipeline to execute specific
