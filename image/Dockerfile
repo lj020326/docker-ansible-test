@@ -3,7 +3,7 @@
 # It allows specifying Ansible core and Python versions via build arguments.
 
 # ARG instructions used in FROM must come before the FROM instruction
-ARG PYTHON_VERSION="3.10"
+ARG PYTHON_VERSION="3.12"
 
 # Use a Python base image that matches the desired Python version
 # We use a slim Debian-based image for smaller size.
@@ -102,8 +102,6 @@ RUN wget -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ
 #RUN wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
 #    chmod +x /usr/local/bin/yq
 
-RUN echo "Install ansible-core with ANSIBLE_CORE_VERSION: ${ANSIBLE_CORE_VERSION}"
-
 # Create a non-root user and group, if they don't already exist
 RUN if ! getent group "${APPGROUP}" > /dev/null; then addgroup --system "${APPGROUP}"; fi \
     && if ! getent passwd "${APPUSER}" > /dev/null; then \
@@ -117,6 +115,8 @@ USER "${APPUSER}"
 # Create a working directory for Ansible project files
 WORKDIR /ansible_project
 ENV PATH="/ansible_project/.local/bin:${PATH}"
+
+RUN echo "Install ansible-core with ANSIBLE_CORE_VERSION: ${ANSIBLE_CORE_VERSION}"
 
 # Install ansible-core and ansible-test.
 # ansible-test is included as part of the ansible-core package.
@@ -148,7 +148,7 @@ RUN pip install --upgrade pip \
 #            set +x; \
             ;; \
     esac \
-    && pip install pytest flake8
+    && pip install --user pytest flake8
 
 # You can add an entrypoint here if you want to define a default command,
 # but leaving it flexible allows the Jenkins pipeline to execute specific
