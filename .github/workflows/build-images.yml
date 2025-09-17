@@ -1,0 +1,64 @@
+name: Docker jenkins images build
+
+on:
+  push:
+    branches: ['*']
+  schedule:
+    ## Nightly Docker Image Rebuild (1:05am daily)
+    - cron: '5 1 * * *'
+#    ## Nightly Docker Image Rebuild (12am daily)
+#    - cron: '0 0 * * *'
+
+env:
+  DOCKER_IMAGE: lj020326/ansible-test
+
+jobs:
+  build-docker-image:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      ## ref: https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
+#      max-parallel: 2
+      matrix:
+        versions:
+          - { python: "3.13", ansible: 2.19, tag: "stable-2.19-py3.13" }
+          - { python: "3.11", ansible: 2.19, tag: "stable-2.19-py3.11" }
+          - { python: "3.11", ansible: 2.18, tag: "stable-2.18-py3.11" }
+          - { python: "3.12", ansible: 2.16, tag: "stable-2.16-py3.12" }
+          - { python: "3.10", ansible: 2.16, tag: "stable-2.16-py3.10" }
+#          - { python: "3.13", ansible: devel, tag: "devel-py3.13" }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: If the same workflow is already running from a previous commit, wait for it to finish
+        uses: ahmadnassri/action-workflow-queue@v1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Build and push ${{ env.DOCKER_IMAGE }}:${{ matrix.versions.tag }}
+        uses: docker/build-push-action@v3
+        with:
+          context: image
+          file: image/Dockerfile
+          build-args: |
+            ANSIBLE_CORE_VERSION=${{ matrix.versions.ansible }}
+            PYTHON_VERSION=${{ matrix.versions.python }}
+          push: true
+          tags: ${{ env.DOCKER_IMAGE }}:${{ matrix.versions.tag }}
+          labels: |
+            maintainer=${{ github.repository_owner }}
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+            org.opencontainers.image.revision=${{ github.sha }}
