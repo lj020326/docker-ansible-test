@@ -98,11 +98,14 @@ RUN apt-get update \
 RUN python -m pip install --upgrade pip
 
 ## 'yq' required for ansible inventory tests
-## https://github.com/mikefarah/yq#install
-RUN wget -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz -O - |\
-  tar xz && mv ${YQ_BINARY} /usr/local/bin/yq
+## ref: https://github.com/mikefarah/yq#install
+## ref: https://askubuntu.com/questions/72663/how-to-make-wget-retry-download-if-speed-goes-below-certain-threshold
 #RUN wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
 #    chmod +x /usr/local/bin/yq
+#RUN wget -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz -O - |\
+#  tar xz && mv ${YQ_BINARY} /usr/local/bin/yq
+RUN wget -c --tries=5 --read-timeout=5 -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz -O - |\
+  tar xz && mv ${YQ_BINARY} /usr/local/bin/yq
 
 # Set the working user for the rest of the build and runtime to 'root'
 # as your desired UID is 0.
