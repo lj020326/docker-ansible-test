@@ -107,12 +107,6 @@ RUN python -m pip install --upgrade pip
 RUN wget -c --tries=5 --read-timeout=5 -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz -O - |\
   tar xz && mv ${YQ_BINARY} /usr/local/bin/yq
 
-# Copy the retry script into the image
-COPY retry_command.sh /usr/local/bin/retry_command.sh
-
-# Make the script executable
-RUN chmod +x /usr/local/bin/retry_command.sh
-
 # Set the working user for the rest of the build and runtime to 'root'
 # as your desired UID is 0.
 USER root
