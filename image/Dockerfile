@@ -107,6 +107,12 @@ RUN python -m pip install --upgrade pip
 RUN wget -c --tries=5 --read-timeout=5 -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz -O - |\
   tar xz && mv ${YQ_BINARY} /usr/local/bin/yq
 
+# Copy the retry script into the image
+COPY retry_command.sh /usr/local/bin/retry_command.sh
+
+# Make the script executable
+RUN chmod +x /usr/local/bin/retry_command.sh
+
 # Set the working user for the rest of the build and runtime to 'root'
 # as your desired UID is 0.
 USER root
@@ -116,7 +122,8 @@ RUN echo "Install ansible-core with ANSIBLE_CORE_VERSION: ${ANSIBLE_CORE_VERSION
 # Install ansible-core and ansible-test.
 # ansible-test is included as part of the ansible-core package.
 # Use the specified ANSIBLE_CORE_VERSION.
-RUN pip install --user --upgrade pip \
+#RUN pip install --user --upgrade pip \
+RUN pip install --disable-pip-version-check --upgrade pip \
     && case "${ANSIBLE_CORE_VERSION}" in \
         latest) \
             pip install "ansible-core"; \
@@ -138,12 +145,13 @@ RUN pip install --user --upgrade pip \
                 exit 1; \
             fi; \
 #            set -x; \
-            python -m pip install " https://github.com/ansible/ansible/archive/stable-${ANSIBLE_CORE_VERSION}.tar.gz" --disable-pip-version-check --user; \
-#            pip install "ansible-core~=${ANSIBLE_CORE_VERSION}"; \
+#            python -m pip install " https://github.com/ansible/ansible/archive/stable-${ANSIBLE_CORE_VERSION}.tar.gz" --disable-pip-version-check --user; \
+            pip install "ansible-core~=${ANSIBLE_CORE_VERSION}"; \
 #            set +x; \
             ;; \
     esac \
-    && pip install --user pytest flake8
+    && pip install --disable-pip-version-check pytest flake8
+#    && pip install --user pytest flake8
 
 # Create the default Ansible collections directory to ensure
 # `ansible-galaxy collection list` can run without errors.
