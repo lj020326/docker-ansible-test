@@ -140,7 +140,11 @@ RUN pip install --disable-pip-version-check --upgrade pip \
             fi; \
 #            set -x; \
 #            python -m pip install " https://github.com/ansible/ansible/archive/stable-${ANSIBLE_CORE_VERSION}.tar.gz" --disable-pip-version-check --user; \
-            pip install "ansible-core~=${ANSIBLE_CORE_VERSION}"; \
+#            pip install "ansible-core~=${ANSIBLE_CORE_VERSION}"; \
+            MAJOR_MINOR=$(echo "${ANSIBLE_CORE_VERSION}" | cut -d. -f1,2); \
+            NEXT_MINOR=$(echo "${ANSIBLE_CORE_VERSION}" | awk -F. '{print $2 + 1}'); \
+            UPPER_BOUND="${MAJOR_MINOR%.*}.${NEXT_MINOR}"; \
+            pip install --disable-pip-version-check "ansible-core>=${ANSIBLE_CORE_VERSION},<${UPPER_BOUND}"; \
 #            set +x; \
             ;; \
     esac \
