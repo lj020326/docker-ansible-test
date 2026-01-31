@@ -22,6 +22,8 @@ jobs:
 #      max-parallel: 2
       matrix:
         versions:
+#          - { python: "3.14", ansible: "2.20", tag: "stable-2.20-py3.13" }
+#          - { python: "3.14", ansible: "2.19", tag: "stable-2.19-py3.13" }
           - { python: "3.13", ansible: "2.20", tag: "stable-2.20-py3.13" }
           - { python: "3.13", ansible: "2.19", tag: "stable-2.19-py3.13" }
           - { python: "3.12", ansible: "2.20", tag: "stable-2.20-py3.12" }
