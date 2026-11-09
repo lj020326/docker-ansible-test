@@ -1,7 +1,7 @@
 ---
 alwaysEmailList: ljohnson@dettonville.org
 runInParallel: true
-maxRandomDelaySeconds: 120
+maxRandomDelaySeconds: 60
 
 buildImageName: "ansible/ansible-test"
 buildDir: "image"
@@ -9,46 +9,36 @@ buildArgs:
   IMAGE_REGISTRY: media.johnson.int:5000
 
 buildImageList:
-  ## python: 3.10
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.16"
-      PYTHON_VERSION: "3.10"
-    buildTags:
-      - stable-2.16-py3.10
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "latest"
-      PYTHON_VERSION: "3.10"
-    buildTags:
-      - latest-py3.10
-
-  ## python: 3.11
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.16"
-      PYTHON_VERSION: "3.11"
-    buildTags:
-      - stable-2.16-py3.11
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.18"
-      PYTHON_VERSION: "3.11"
-    buildTags:
-      - stable-2.18-py3.11
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.19"
-      PYTHON_VERSION: "3.11"
-    buildTags:
-      - stable-2.19-py3.11
+#  ## python: 3.10
+#  - buildArgs:
+#      ANSIBLE_CORE_VERSION: "2.16"
+#      PYTHON_VERSION: "3.10"
+#    buildTags:
+#      - stable-2.16-py3.10
+#  - buildArgs:
+#      ANSIBLE_CORE_VERSION: "latest"
+#      PYTHON_VERSION: "3.10"
+#    buildTags:
+#      - latest-py3.10
+#
+#  ## python: 3.11
+#  - buildArgs:
+#      ANSIBLE_CORE_VERSION: "2.16"
+#      PYTHON_VERSION: "3.11"
+#    buildTags:
+#      - stable-2.16-py3.11
+#  - buildArgs:
+#      ANSIBLE_CORE_VERSION: "2.18"
+#      PYTHON_VERSION: "3.11"
+#    buildTags:
+#      - stable-2.18-py3.11
+#  - buildArgs:
+#      ANSIBLE_CORE_VERSION: "2.19"
+#      PYTHON_VERSION: "3.11"
+#    buildTags:
+#      - stable-2.19-py3.11
 
   ## python: 3.12
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.16"
-      PYTHON_VERSION: "3.12"
-    buildTags:
-      - stable-2.16-py3.12
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.17"
-      PYTHON_VERSION: "3.12"
-    buildTags:
-      - stable-2.17-py3.12
   - buildArgs:
       ANSIBLE_CORE_VERSION: "2.18"
       PYTHON_VERSION: "3.12"
@@ -65,27 +55,12 @@ buildImageList:
     buildTags:
       - stable-2.20-py3.12
   - buildArgs:
-      ANSIBLE_CORE_VERSION: "latest"
+      ANSIBLE_CORE_VERSION: "2.21"
       PYTHON_VERSION: "3.12"
     buildTags:
-      - latest-py3.12
+      - stable-2.21-py3.12
 
   ## python: 3.13
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.16"
-      PYTHON_VERSION: "3.13"
-    buildTags:
-      - stable-2.16-py3.13
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.17"
-      PYTHON_VERSION: "3.13"
-    buildTags:
-      - stable-2.17-py3.13
-  - buildArgs:
-      ANSIBLE_CORE_VERSION: "2.18"
-      PYTHON_VERSION: "3.13"
-    buildTags:
-      - stable-2.18-py3.13
   - buildArgs:
       ANSIBLE_CORE_VERSION: "2.19"
       PYTHON_VERSION: "3.13"
@@ -97,24 +72,44 @@ buildImageList:
     buildTags:
       - stable-2.20-py3.13
   - buildArgs:
+      ANSIBLE_CORE_VERSION: "2.21"
+      PYTHON_VERSION: "3.13"
+    buildTags:
+      - stable-2.21-py3.13
+  - buildArgs:
+      ANSIBLE_CORE_VERSION: "2.22"
+      PYTHON_VERSION: "3.13"
+    buildTags:
+      - stable-2.22-py3.13
+  - buildArgs:
       ANSIBLE_CORE_VERSION: "latest"
       PYTHON_VERSION: "3.13"
     buildTags:
       - latest-py3.13
 
-#  ## python: 3.14
+  ## python: 3.14
 #  - buildArgs:
 #      ANSIBLE_CORE_VERSION: "2.19"
 #      PYTHON_VERSION: "3.14"
 #    buildTags:
 #      - stable-2.19-py3.14
-#  - buildArgs:
-#      ANSIBLE_CORE_VERSION: "2.20"
-#      PYTHON_VERSION: "3.14"
-#    buildTags:
-#      - stable-2.20-py3.14
-#  - buildArgs:
-#      ANSIBLE_CORE_VERSION: "latest"
-#      PYTHON_VERSION: "3.14"
-#    buildTags:
-#      - latest-py3.14
+  - buildArgs:
+      ANSIBLE_CORE_VERSION: "2.20"
+      PYTHON_VERSION: "3.14"
+    buildTags:
+      - stable-2.20-py3.14
+  - buildArgs:
+      ANSIBLE_CORE_VERSION: "2.21"
+      PYTHON_VERSION: "3.14"
+    buildTags:
+      - stable-2.21-py3.14
+  - buildArgs:
+      ANSIBLE_CORE_VERSION: "2.22"
+      PYTHON_VERSION: "3.14"
+    buildTags:
+      - stable-2.22-py3.14
+  - buildArgs:
+      ANSIBLE_CORE_VERSION: "latest"
+      PYTHON_VERSION: "3.14"
+    buildTags:
+      - latest-py3.14

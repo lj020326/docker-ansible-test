@@ -1,6 +1,11 @@
 name: Docker ansible-test images build
 
 on:
+  # Allows manual triggering
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
   push:
     branches: ['*']
   schedule:
@@ -10,10 +15,10 @@ on:
 #    - cron: '0 0 * * *'
 
 env:
-  DOCKER_IMAGE: lj020326/ansible-test
+  DOCKER_IMAGE: ${{ github.repository_owner }}/ansible-test
 
 jobs:
-  build-docker-image:
+  push_to_registry:
     runs-on: ubuntu-latest
 
     strategy:
@@ -22,32 +27,65 @@ jobs:
 #      max-parallel: 2
       matrix:
         versions:
-#          - { python: "3.14", ansible: "2.20", tag: "stable-2.20-py3.13" }
-#          - { python: "3.14", ansible: "2.19", tag: "stable-2.19-py3.13" }
+          - { python: "3.14", ansible: "2.22", tag: "stable-2.22-py3.14" }
+          - { python: "3.14", ansible: "2.21", tag: "stable-2.21-py3.14" }
+          - { python: "3.14", ansible: "2.20", tag: "stable-2.20-py3.14" }
+#          - { python: "3.14", ansible: "2.19", tag: "stable-2.19-py3.14" }
+#          - { python: "3.14", ansible: "devel", tag: "devel-py3.14" }
+          - { python: "3.13", ansible: "2.22", tag: "stable-2.22-py3.13" }
+          - { python: "3.13", ansible: "2.21", tag: "stable-2.21-py3.13" }
           - { python: "3.13", ansible: "2.20", tag: "stable-2.20-py3.13" }
           - { python: "3.13", ansible: "2.19", tag: "stable-2.19-py3.13" }
+          - { python: "3.12", ansible: "2.21", tag: "stable-2.21-py3.12" }
           - { python: "3.12", ansible: "2.20", tag: "stable-2.20-py3.12" }
           - { python: "3.12", ansible: "2.19", tag: "stable-2.19-py3.12" }
           - { python: "3.12", ansible: "2.16", tag: "stable-2.16-py3.12" }
           - { python: "3.11", ansible: "2.19", tag: "stable-2.19-py3.11" }
           - { python: "3.11", ansible: "2.18", tag: "stable-2.18-py3.11" }
           - { python: "3.10", ansible: "2.16", tag: "stable-2.16-py3.10" }
-#          - { python: "3.13", ansible: "devel", tag: "devel-py3.13" }
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
       - name: If the same workflow is already running from a previous commit, wait for it to finish
         uses: ahmadnassri/action-workflow-queue@v1
 
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      # === DOCKER BUILD SETUP PHASE ===
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
+        with:
+          platforms: ${{ steps.git.outputs.platforms }}
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      # Set a unique build ID for the current matrix version
+      - name: Set unique build ID
+        id: set-build-id
+        run: echo "BUILD_ID=build-${{ github.run_number }}" >> $GITHUB_ENV
+
+      # Determine tags dynamically based on branch
+      - name: Determine Docker tags
+        id: meta
+        run: |
+          # Extract branch name (e.g., 'v1' or 'develop-lj')
+          BRANCH_NAME=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+
+          # Base tags: branch name, SHA, build number, and date
+          TAGS="${{ env.DOCKER_IMAGE }}:${BRANCH_NAME}"
+          TAGS="$TAGS,${{ env.DOCKER_IMAGE }}:${{ matrix.versions.tag }}"
+          TAGS="$TAGS,${{ env.DOCKER_IMAGE }}:${{ github.sha }}"
+          TAGS="$TAGS,${{ env.DOCKER_IMAGE }}:build-${{ github.run_number }}"
+          TAGS="$TAGS,${{ env.DOCKER_IMAGE }}:${{ steps.date.outputs.date }}"
+
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Login to DockerHub
+      - name: Log in to Docker Hub
         uses: docker/login-action@v4
         with:
           username: ${{ github.repository_owner }}
@@ -58,11 +96,13 @@ jobs:
         with:
           context: image
           file: image/Dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
           build-args: |
+            BUILD_ID=${{ env.BUILD_ID }}
+            BUILD_DATE=${{ steps.date.outputs.date }}
             ANSIBLE_CORE_VERSION=${{ matrix.versions.ansible }}
             PYTHON_VERSION=${{ matrix.versions.python }}
           push: true
-          tags: ${{ env.DOCKER_IMAGE }}:${{ matrix.versions.tag }}
           labels: |
             maintainer=${{ github.repository_owner }}
             org.opencontainers.image.vendor=${{ github.repository_owner }}

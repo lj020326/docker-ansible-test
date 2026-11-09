@@ -2,12 +2,33 @@
 # This Dockerfile builds a custom ansible-test container image.
 # It allows specifying Ansible core and Python versions via build arguments.
 
-# ARG instructions used in FROM must come before the FROM instruction
-ARG PYTHON_VERSION="3.12"
+#=============================================================================
+# 1. CORE BUILD CONFIGURATION
+#=============================================================================
+ARG PYTHON_VERSION="3.13"
+ARG DEBIAN_VERSION="bookworm"
+FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS builder
 
-# Use a Python base image that matches the desired Python version
-# We use a slim Debian-based image for smaller size.
-FROM python:${PYTHON_VERSION}-slim-bullseye
+ENV YQ_VERSION=v4.53.2
+ENV YQ_BINARY=yq_linux_amd64
+
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends unzip tar curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /out/usr/local/bin
+
+# ADD auto-extracts local archives, saving extract layers
+ADD files/${YQ_BINARY}_${YQ_VERSION}.tar.gz /tmp/
+
+RUN mv /tmp/${YQ_BINARY} /out/usr/local/bin/yq || mv /tmp/*${YQ_BINARY}* /out/usr/local/bin/yq
+
+# Ensure everything is executable
+RUN chmod +x /out/usr/local/bin/*
+
+#=============================================================================
+# 3. CONSOLIDATED RUNTIME IMAGE
+#=============================================================================
+FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION}
 
 ARG ANSIBLE_CORE_VERSION="latest"
 
@@ -18,106 +39,80 @@ ARG BUILD_DATE
 ARG BUILD_ID=devel
 LABEL build=$BUILD_ID
 
-# Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
-    PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/ansible/bin" \
-    # Set PIP_NO_CACHE_DIR to prevent pip from caching packages inside the image
+    TZ=Etc/UTC \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8 \
+    container=docker \
+    VIRTUAL_ENV=/opt/venv \
     PIP_NO_CACHE_DIR=1
 
-ENV PATH="/root/.local/bin:${PATH}"
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
-## ref: https://github.com/pypa/pip/issues/11179#issuecomment-1152766374
-ENV PIP_ROOT_USER_ACTION=ignore
+ARG user=jenkins
+ARG group=jenkins
+ARG uid=1001
+ARG gid=1001
+ARG DOCKER_GID=1102
 
-## https://github.com/mikefarah/yq#install
-ENV YQ_VERSION=v4.2.0
-ENV YQ_BINARY=yq_linux_amd64
+# Switch default shell to bash so pipefail is recognized globally across RUN statements
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Update package lists and install necessary build tools and common dependencies.
-# These are essential for compiling some Python packages and for general test execution.
-# Add any other system-level dependencies your specific Ansible collections might require.
-# For example, if your collections interact with AWS, Azure, databases, etc., you might need:
-# apt-get install -y --no-install-recommends libssl-dev libffi-dev openssh-client
-RUN apt-get update \
-    && apt-get install -y apt-utils \
-    && apt-get install -y --no-install-recommends \
-        build-essential \
-        ca-certificates \
-        bash \
-        git \
-        curl \
-        wget \
-        tree \
-        jq \
-        ssh-client \
-        shellcheck \
-        locales \
-        # Docker-in-docker dependencies
-        gnupg \
-        dirmngr \
-        sshpass \
-        # Common libraries for Python modules (e.g., for cryptography, database connectors)
-        libpq-dev \
-        # libmysqlclient-dev \
-        libmariadb-dev \
-        # python-ldap dependencies
-        build-essential \
-        libsasl2-dev \
-        libldap2-dev \
-        libssl-dev \
-    # Add more if needed, e.g., python3-dev for some native extensions
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+# Setup Docker Group, Jenkins User, and APT Configuration
+RUN groupadd -g "${DOCKER_GID}" docker && \
+    groupadd -g "${gid}" "${group}" && \
+    useradd -l -c "Jenkins user" --shell /bin/bash -d /home/"${user}" -u "${uid}" -g "${gid}" -m "${user}" && \
+    usermod -aG sudo,docker "${user}" && \
+    printf 'APT::Install-Suggests "0";\nAPT::Install-Recommends "0";\n' > /etc/apt/apt.conf.d/00-docker
 
-# Generate and set the locale
-RUN sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
-    && locale-gen
+# Combined APT Installation Layer
+# hadolint ignore=DL3008
+RUN set -o pipefail && \
+    apt-get update -qqy && \
+    apt-get -qqy --no-install-recommends install \
+      apt-transport-https apt-utils ca-certificates \
+      bash tar zip unzip xorriso \
+      curl git git-lfs \
+      locales tzdata netbase \
+      tree less jq rsync \
+      dnsutils iproute2 iputils-ping inetutils-telnet \
+      openssh-client ssh-askpass sshpass \
+      gpg gpg-agent gnupg2 \
+      shellcheck groff rlwrap \
+      build-essential patch genisoimage dirmngr openssl \
+      libxml2-dev libxslt1-dev \
+      zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev \
+      libpq-dev libmariadb-dev libsasl2-dev libldap2-dev \
+      libssl-dev libsqlite3-dev libreadline-dev libffi-dev \
+      libbz2-dev uuid-dev default-mysql-client && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=\"$(dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "\"$VERSION_CODENAME\"") stable" > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin docker-buildx-plugin docker-model-plugin && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables for the locale
-ENV LANG=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8
+#=============================================================================
+# 4. RUNTIME DEPENDENCY INGESTION
+#=============================================================================
+COPY --from=builder /out/usr/local/bin/ /usr/local/bin/
 
-# --- Start Docker-in-Docker (DinD) support installation ---
-# Install Docker CLI to enable running docker commands inside this container.
-# This is crucial for scenarios like 'ansible-test units --docker' which
-# require interacting with a Docker daemon.
-RUN apt-get update \
-    && install -m 0755 -d /etc/apt/keyrings \
-    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
-    && chmod a+r /etc/apt/keyrings/docker.gpg \
-    && echo \
-        "deb [arch=\"$(dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-        $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" | \
-        tee /etc/apt/sources.list.d/docker.list > /dev/null \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends docker-ce-cli **docker-compose-plugin** \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-# --- End Docker-in-Docker (DinD) support installation ---
-
-RUN python -m pip install --upgrade pip
-
-## 'yq' required for ansible inventory tests
-## ref: https://github.com/mikefarah/yq#install
-## ref: https://askubuntu.com/questions/72663/how-to-make-wget-retry-download-if-speed-goes-below-certain-threshold
-#RUN wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
-#    chmod +x /usr/local/bin/yq
-#RUN wget -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz -O - |\
-#  tar xz && mv ${YQ_BINARY} /usr/local/bin/yq
-RUN wget -c --tries=5 --read-timeout=5 -q https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz -O - |\
-  tar xz && mv ${YQ_BINARY} /usr/local/bin/yq
-
-# Set the working user for the rest of the build and runtime to 'root'
-# as your desired UID is 0.
-USER root
+# Setup Virtual Environment and Python packages
+WORKDIR /tmp
+# hadolint ignore=DL3013
+RUN python3 -m venv "$VIRTUAL_ENV" && pip install --no-cache-dir --upgrade pip wheel setuptools
 
 RUN echo "Install ansible-core with ANSIBLE_CORE_VERSION: ${ANSIBLE_CORE_VERSION}"
 
 # Install ansible-core and ansible-test.
 # ansible-test is included as part of the ansible-core package.
 # Use the specified ANSIBLE_CORE_VERSION.
-#RUN pip install --user --upgrade pip \
-RUN pip install --disable-pip-version-check --upgrade pip \
+# hadolint ignore=DL3013
+RUN set -o pipefail && \
+    pip install --disable-pip-version-check --upgrade pip \
     && case "${ANSIBLE_CORE_VERSION}" in \
         latest) \
             pip install "ansible-core"; \
@@ -128,8 +123,6 @@ RUN pip install --disable-pip-version-check --upgrade pip \
             # installing the latest published ansible-core.
 #            set -x; \
             python -m pip install " https://github.com/ansible/ansible/archive/devel.tar.gz" --disable-pip-version-check --user; \
-#            pip install "ansible-core"; \
-#            set +x; \
             ;; \
         *) \
             # Use compatible release operator to get the latest patch version for a given minor version (e.g., 2.14.x)
@@ -138,28 +131,36 @@ RUN pip install --disable-pip-version-check --upgrade pip \
                 echo "Error: ANSIBLE_CORE_VERSION is empty for compatible release installation."; \
                 exit 1; \
             fi; \
-#            set -x; \
-#            python -m pip install " https://github.com/ansible/ansible/archive/stable-${ANSIBLE_CORE_VERSION}.tar.gz" --disable-pip-version-check --user; \
-#            pip install "ansible-core~=${ANSIBLE_CORE_VERSION}"; \
             MAJOR_MINOR=$(echo "${ANSIBLE_CORE_VERSION}" | cut -d. -f1,2); \
             NEXT_MINOR=$(echo "${ANSIBLE_CORE_VERSION}" | awk -F. '{print $2 + 1}'); \
             UPPER_BOUND="${MAJOR_MINOR%.*}.${NEXT_MINOR}"; \
             pip install --disable-pip-version-check "ansible-core>=${ANSIBLE_CORE_VERSION},<${UPPER_BOUND}"; \
-#            set +x; \
             ;; \
     esac \
     && pip install --disable-pip-version-check pytest flake8
-#    && pip install --user pytest flake8
 
-# Create the default Ansible collections directory to ensure
-# `ansible-galaxy collection list` can run without errors.
-# The `ansible-test` tool and other Ansible commands expect this path to exist.
-RUN mkdir -p /root/.ansible/collections
 
-# Create a working directory for Ansible project files
-WORKDIR /ansible_project
+# Configure Multiarch Contexts
+RUN for user_home in /root "/home/${user}"; do \
+        mkdir -p "${user_home}/.ssh" && \
+        mkdir -p "${user_home}/.docker/buildx/instances" && \
+        echo '{"name":"multiarch-builder","driver":"docker-container","nodes":[{"name":"multiarch-builder0","endpoint":"unix:///var/run/docker.sock","platforms":null,"flags":[],"env":null,"driver-opts":null}]}' \
+        > "${user_home}/.docker/buildx/instances/multiarch-builder" && \
+        mkdir -p "${user_home}/.docker" && \
+        echo '{"currentContext":"default"}' \
+        > "${user_home}/.docker/config.json" && \
+        mkdir -p "${user_home}/.ansible/collections" && \
+        chown -R "${user}:${user}" "${user_home}/.docker" "${user_home}/.ansible" || true; \
+    done
+
+ENV HOME=/home/${user}
+WORKDIR ${HOME}
+USER ${user}
 
 # You can add an entrypoint here if you want to define a default command,
 # but leaving it flexible allows the Jenkins pipeline to execute specific
 # ansible-test commands directly.
 # ENTRYPOINT ["ansible-test"]
+
+# Fallback default command
+#CMD ["/bin/bash"]
